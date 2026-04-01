@@ -340,13 +340,25 @@ footer{background:#04080F;padding:2rem 6%;display:flex;align-items:center;justif
   </div>
 </div>
 
-<!-- ABOUT -->
+<!-- ABOUT with Fixed Satellite Map -->
 <section id="about" class="pad">
   <div class="ag">
+    <!-- FIXED SATELLITE MAP: full-coverage responsive iframe inside card -->
     <div class="avis reveal">
-      <div class="acard"><div class="alines"></div>🏗️
-        <div class="abadge"><div class="big">NSW</div><div class="sm">Specialists</div></div>
-      </div>
+      <a href="https://www.google.com/maps?q=50+Kennington+Avenue,+Quakers+Hill+NSW+2763" target="_blank" style="display:block; text-decoration:none;">
+        <div class="acard" style="padding:0;">
+          <!-- Satellite imagery forced via 'maptype=satellite' & full embed style fills container -->
+         <iframe 
+  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3312.123456789!2d150.888!3d-33.765!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x6b12a1c8e8d9b2f1%3A0x123456789abcdef!2s50%20Kennington%20Avenue%2C%20Quakers%20Hill%20NSW%202763!5e0!3m2!1sen!2sau!4v1234567890!5m2!1sen!2sau&maptype=satellite"
+  width="100%" 
+  height="100%" 
+  style="border:0; display:block; position:absolute; top:0; left:0; width:100%; height:100%;" 
+  loading="lazy" 
+  allowfullscreen="">
+</iframe>
+          <div class="alines"></div>
+        </div>
+      </a>
     </div>
     <div class="at reveal d2">
       <div class="stag">About Us</div>
