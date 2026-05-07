@@ -45,7 +45,7 @@ export default async function handler(req, res) {
     body: JSON.stringify({
       from: 'onboarding@resend.dev', // Resend's test sender (works immediately)
       // Or use your verified domain: 'contact@yourdomain.com'
-      to: ['jogiharsh@gmail.com'],
+      to: ['info@projectapprovals.com.au'],
       subject: `New Enquiry from ${firstName} ${lastName} - ${service}`,
       text: emailContent,
     }),
