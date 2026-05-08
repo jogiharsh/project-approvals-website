@@ -1,11 +1,27 @@
 // api/send-email.js
 
-export default async function handler(req, res) {
+const nodemailer = require('nodemailer');
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({
+      error: 'Method not allowed',
+    });
   }
 
   try {
+    const body =
+      typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
+
     const {
       firstName = '',
       lastName = '',
@@ -13,15 +29,16 @@ export default async function handler(req, res) {
       phone = '',
       service = '',
       details = '',
-      website = '', // hidden spam trap
-    } = req.body || {};
+      website = '',
+    } = body;
 
-    // Spam trap: real users will not fill this field
+    // Hidden spam trap. Real users will not fill this field.
     if (website) {
-      return res.status(200).json({ success: true });
+      return res.status(200).json({
+        success: true,
+        message: 'Enquiry submitted successfully.',
+      });
     }
-
-    const fullName = `${firstName} ${lastName}`.trim();
 
     if (!firstName || !lastName || !email || !phone || !service || !details) {
       return res.status(400).json({
@@ -29,22 +46,36 @@ export default async function handler(req, res) {
       });
     }
 
-    const RESEND_API_KEY = process.env.RESEND_API_KEY;
+    const SMTP_HOST = process.env.SMTP_HOST;
+    const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
+    const SMTP_USER = process.env.SMTP_USER;
+    const SMTP_PASS = process.env.SMTP_PASS;
+    const TO_EMAIL = process.env.TO_EMAIL || 'info@projectapprovals.com.au';
 
-    if (!RESEND_API_KEY) {
-      console.error('Missing RESEND_API_KEY');
+    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+      console.error('Missing SMTP configuration');
+
       return res.status(500).json({
         error: 'Email service is not configured.',
       });
     }
 
-    const TO_EMAIL =
-      process.env.TO_EMAIL || 'info@projectapprovals.com.au';
+    const fullName = `${firstName} ${lastName}`.trim();
 
-    const FROM_EMAIL =
-      process.env.FROM_EMAIL || 'Project Approvals <onboarding@resend.dev>';
+    const transporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_PORT === 465,
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS,
+      },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
+    });
 
-    const emailContent = `
+    const textContent = `
 New Enquiry from Project Approvals Website
 
 --- Contact Details ---
@@ -61,38 +92,44 @@ Please respond to: ${email}
 Phone: ${phone}
     `.trim();
 
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: FROM_EMAIL,
-        to: [TO_EMAIL],
-        reply_to: email,
-        subject: `New Enquiry from ${fullName} - ${service}`,
-        text: emailContent,
-      }),
+    const htmlContent = `
+      <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #1b2a35;">
+        <h2 style="color: #061826;">New Enquiry from Project Approvals Website</h2>
+
+        <h3 style="color: #061826;">Contact Details</h3>
+        <p><strong>Name:</strong> ${escapeHtml(fullName)}</p>
+        <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+        <p><strong>Phone:</strong> ${escapeHtml(phone)}</p>
+        <p><strong>Service Required:</strong> ${escapeHtml(service)}</p>
+
+        <h3 style="color: #061826;">Project Details</h3>
+        <p>${escapeHtml(details).replaceAll('\n', '<br>')}</p>
+
+        <hr>
+
+        <p><strong>Reply to:</strong> ${escapeHtml(email)}</p>
+        <p><strong>Phone:</strong> ${escapeHtml(phone)}</p>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Project Approvals" <${SMTP_USER}>`,
+      to: TO_EMAIL,
+      replyTo: email,
+      subject: `New Enquiry from ${fullName} - ${service}`,
+      text: textContent,
+      html: htmlContent,
     });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error('Resend error:', data);
-      return res.status(500).json({
-        error: data?.message || 'Failed to send enquiry.',
-      });
-    }
 
     return res.status(200).json({
       success: true,
       message: 'Enquiry sent successfully.',
     });
   } catch (error) {
-    console.error('Server error:', error);
+    console.error('Email sending error:', error);
+
     return res.status(500).json({
-      error: 'Something went wrong. Please try again.',
+      error: 'Failed to send enquiry.',
     });
   }
-}
+};
