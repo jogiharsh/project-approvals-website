@@ -2,8 +2,23 @@
 
 const nodemailer = require('nodemailer');
 
+function extractEmail(value) {
+  const match = String(value || '').match(
+    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
+  );
+
+  return match ? match[0].trim().toLowerCase() : '';
+}
+
+function cleanHeader(value) {
+  return String(value || '')
+    .replace(/[\r\n]+/g, ' ')
+    .trim()
+    .slice(0, 180);
+}
+
 function escapeHtml(value) {
-  return String(value)
+  return String(value || '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
@@ -48,24 +63,36 @@ module.exports = async function handler(req, res) {
 
     const SMTP_HOST = process.env.SMTP_HOST;
     const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
-    const SMTP_USER = process.env.SMTP_USER;
+    const SMTP_USER = extractEmail(process.env.SMTP_USER);
     const SMTP_PASS = process.env.SMTP_PASS;
-    const TO_EMAIL = process.env.TO_EMAIL || 'info@projectapprovals.com.au';
+    const TO_EMAIL = extractEmail(
+      process.env.TO_EMAIL || 'info@projectapprovals.com.au'
+    );
 
-    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-      console.error('Missing SMTP configuration');
+    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS || !TO_EMAIL) {
+      console.error('Missing SMTP configuration', {
+        hasHost: Boolean(SMTP_HOST),
+        hasUser: Boolean(SMTP_USER),
+        hasPass: Boolean(SMTP_PASS),
+        hasTo: Boolean(TO_EMAIL),
+      });
 
       return res.status(500).json({
         error: 'Email service is not configured.',
       });
     }
 
-    const fullName = `${firstName} ${lastName}`.trim();
+    const fullName = cleanHeader(`${firstName} ${lastName}`);
+    const clientEmail = extractEmail(email);
+    const cleanPhone = cleanHeader(phone);
+    const cleanService = cleanHeader(service);
+    const cleanDetails = String(details || '').trim();
 
     const transporter = nodemailer.createTransport({
       host: SMTP_HOST,
       port: SMTP_PORT,
       secure: SMTP_PORT === 465,
+      requireTLS: SMTP_PORT === 587,
       auth: {
         user: SMTP_USER,
         pass: SMTP_PASS,
@@ -80,16 +107,16 @@ New Enquiry from Project Approvals Website
 
 --- Contact Details ---
 Name: ${fullName}
-Email: ${email}
-Phone: ${phone}
-Service Required: ${service}
+Email: ${clientEmail || email}
+Phone: ${cleanPhone}
+Service Required: ${cleanService}
 
 --- Project Details ---
-${details}
+${cleanDetails}
 
 ---
-Please respond to: ${email}
-Phone: ${phone}
+Please respond to: ${clientEmail || email}
+Phone: ${cleanPhone}
     `.trim();
 
     const htmlContent = `
@@ -98,27 +125,52 @@ Phone: ${phone}
 
         <h3 style="color: #061826;">Contact Details</h3>
         <p><strong>Name:</strong> ${escapeHtml(fullName)}</p>
-        <p><strong>Email:</strong> ${escapeHtml(email)}</p>
-        <p><strong>Phone:</strong> ${escapeHtml(phone)}</p>
-        <p><strong>Service Required:</strong> ${escapeHtml(service)}</p>
+        <p><strong>Email:</strong> ${escapeHtml(clientEmail || email)}</p>
+        <p><strong>Phone:</strong> ${escapeHtml(cleanPhone)}</p>
+        <p><strong>Service Required:</strong> ${escapeHtml(cleanService)}</p>
 
         <h3 style="color: #061826;">Project Details</h3>
-        <p>${escapeHtml(details).replaceAll('\n', '<br>')}</p>
+        <p>${escapeHtml(cleanDetails).replaceAll('\n', '<br>')}</p>
 
         <hr>
 
-        <p><strong>Reply to:</strong> ${escapeHtml(email)}</p>
-        <p><strong>Phone:</strong> ${escapeHtml(phone)}</p>
+        <p><strong>Reply to:</strong> ${escapeHtml(clientEmail || email)}</p>
+        <p><strong>Phone:</strong> ${escapeHtml(cleanPhone)}</p>
       </div>
     `;
 
-    await transporter.sendMail({
-      from: `"Project Approvals" <${SMTP_USER}>`,
-      to: TO_EMAIL,
-      replyTo: email,
-      subject: `New Enquiry from ${fullName} - ${service}`,
+    const mailOptions = {
+      from: {
+        name: 'Project Approvals',
+        address: SMTP_USER,
+      },
+      sender: SMTP_USER,
+      to: {
+        name: 'Project Approvals Enquiries',
+        address: TO_EMAIL,
+      },
+      subject: cleanHeader(`New Enquiry from ${fullName} - ${cleanService}`),
       text: textContent,
       html: htmlContent,
+
+      // Controls actual SMTP routing.
+      envelope: {
+        from: SMTP_USER,
+        to: [TO_EMAIL],
+      },
+    };
+
+    if (clientEmail) {
+      mailOptions.replyTo = clientEmail;
+    }
+
+    const info = await transporter.sendMail(mailOptions);
+
+    console.log('Email sent successfully', {
+      messageId: info.messageId,
+      accepted: info.accepted,
+      rejected: info.rejected,
+      envelope: info.envelope,
     });
 
     return res.status(200).json({
