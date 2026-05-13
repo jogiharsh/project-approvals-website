@@ -1,3 +1,5 @@
+import nodemailer from 'nodemailer';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -9,19 +11,39 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
-  const resendApiKey = process.env.RESEND_API_KEY;
+  const requiredEnv = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'FROM_EMAIL', 'TO_EMAIL'];
+  const missingEnv = requiredEnv.filter((key) => !process.env[key]);
 
-  if (!resendApiKey) {
-    return res.status(500).json({ error: 'RESEND_API_KEY is not configured' });
+  if (missingEnv.length > 0) {
+    return res.status(500).json({
+      error: `Missing environment variables: ${missingEnv.join(', ')}`,
+    });
   }
 
-  const safe = (value) => String(value).replace(/[<>]/g, '');
+  const safe = (value) => String(value || '').replace(/[<>]/g, '').trim();
   const safeFirstName = safe(firstName);
   const safeLastName = safe(lastName);
   const safeEmail = safe(email);
   const safePhone = safe(phone);
   const safeService = safe(service);
-  const safeDetails = safe(details).replace(/\n/g, '<br/>');
+  const safeDetails = safe(details);
+
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailPattern.test(safeEmail)) {
+    return res.status(400).json({ error: 'Please enter a valid email address' });
+  }
+
+  const smtpPort = Number(process.env.SMTP_PORT || 465);
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: smtpPort,
+    secure: smtpPort === 465,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
 
   const textBody = [
     'New enquiry from Project Approvals website',
@@ -33,7 +55,7 @@ export default async function handler(req, res) {
     `Service: ${safeService}`,
     '',
     'Project details',
-    safe(details),
+    safeDetails,
   ].join('\n');
 
   const htmlBody = `
@@ -43,31 +65,22 @@ export default async function handler(req, res) {
     <p><strong>Phone:</strong> ${safePhone}</p>
     <p><strong>Service:</strong> ${safeService}</p>
     <p><strong>Project details:</strong></p>
-    <p>${safeDetails}</p>
+    <p>${safeDetails.replace(/\n/g, '<br/>')}</p>
   `;
 
-  const resendResponse = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: 'Project Approvals <noreply@send.projectapprovals.com.au>',
-      to: ['info@projectapprovals.com.au'],
-      reply_to: safeEmail,
+  try {
+    await transporter.sendMail({
+      from: `Project Approvals <${process.env.FROM_EMAIL}>`,
+      to: process.env.TO_EMAIL,
+      replyTo: safeEmail,
       subject: `New enquiry: ${safeFirstName} ${safeLastName} - ${safeService}`,
       text: textBody,
       html: htmlBody,
-    }),
-  });
+    });
 
-  const resendData = await resendResponse.json();
-
-  if (!resendResponse.ok) {
-    console.error('Resend API error:', resendData);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Email sending error:', error);
     return res.status(500).json({ error: 'Failed to send email' });
   }
-
-  return res.status(200).json({ success: true, id: resendData.id });
 }
