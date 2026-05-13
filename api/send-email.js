@@ -1,5 +1,3 @@
-import nodemailer from 'nodemailer';
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -11,13 +9,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
-  const requiredEnv = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'TO_EMAIL'];
-  const missingEnv = requiredEnv.filter((key) => !process.env[key]);
+  const resendApiKey = process.env.RESEND_API_KEY;
 
-  if (missingEnv.length > 0) {
-    return res.status(500).json({
-      error: `Missing environment variables: ${missingEnv.join(', ')}`,
-    });
+  if (!resendApiKey) {
+    return res.status(500).json({ error: 'RESEND_API_KEY is not configured' });
   }
 
   const safe = (value) => String(value || '').replace(/[<>]/g, '').trim();
@@ -28,27 +23,6 @@ export default async function handler(req, res) {
   const safePhone = safe(phone);
   const safeService = safe(service);
   const safeDetails = safe(details);
-
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-  if (!emailPattern.test(safeEmail)) {
-    return res.status(400).json({ error: 'Please enter a valid email address' });
-  }
-
-  const smtpPort = Number(process.env.SMTP_PORT || 465);
-
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    tls: {
-      rejectUnauthorized: true,
-    },
-  });
 
   const textBody = [
     'New enquiry from Project Approvals website',
@@ -74,25 +48,40 @@ export default async function handler(req, res) {
   `;
 
   try {
-    await transporter.sendMail({
-      from: process.env.SMTP_USER,
-      sender: process.env.SMTP_USER,
-      to: process.env.TO_EMAIL,
-      replyTo: safeEmail,
-      subject: `New enquiry: ${safeFirstName} ${safeLastName} - ${safeService}`,
-      text: textBody,
-      html: htmlBody,
+    const resendResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Project Approvals <noreply@send.projectapprovals.com.au>',
+        to: [process.env.TO_EMAIL || 'info@projectapprovals.com.au'],
+        reply_to: safeEmail,
+        subject: `New enquiry: ${safeFirstName} ${safeLastName} - ${safeService}`,
+        text: textBody,
+        html: htmlBody,
+      }),
     });
 
-    return res.status(200).json({ success: true });
+    const resendData = await resendResponse.json();
+
+    if (!resendResponse.ok) {
+      console.error('Resend API error:', resendData);
+
+      return res.status(500).json({
+        error: 'Failed to send email',
+        details: resendData,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      id: resendData.id,
+    });
   } catch (error) {
     console.error('Email sending error:', error);
 
     return res.status(500).json({
       error: 'Failed to send email',
-      details: error.message,
-      code: error.code || null,
-      response: error.response || null,
-    });
-  }
 }
