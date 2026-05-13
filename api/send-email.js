@@ -1,4 +1,4 @@
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -23,6 +23,12 @@ export default async function handler(req, res) {
   const safePhone = safe(phone);
   const safeService = safe(service);
   const safeDetails = safe(details);
+
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailPattern.test(safeEmail)) {
+    return res.status(400).json({ error: 'Please enter a valid email address' });
+  }
 
   const textBody = [
     'New enquiry from Project Approvals website',
@@ -84,4 +90,7 @@ export default async function handler(req, res) {
 
     return res.status(500).json({
       error: 'Failed to send email',
-}
+      details: error.message,
+    });
+  }
+};
