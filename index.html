@@ -447,7 +447,7 @@ footer{background:#04080F;padding:2rem 6%;display:flex;align-items:center;justif
         <div class="ci"><div class="cico">🕐</div><div class="ct"><strong>Hours</strong><span>Monday – Saturday, 8:00 AM – 5:30 PM</span></div></div>
       </div>
     </div>
-    <form class="fbox reveal d2" id="contactForm">
+    <form class="fbox reveal d2" id="contactForm" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
       <h3>Request a Free<br/>Consultation</h3>
       <input type="hidden" name="_subject" value="New enquiry from Project Approvals website"/>
       <div class="fr">
@@ -570,88 +570,58 @@ document.querySelectorAll('.tcard').forEach(c=>{
   c.addEventListener('mouseleave',()=>{c.style.transform='';c.style.transition='transform .5s ease'});
 });
 
-// ── FORM SUBMISSION WITH VERCEL EMAIL API ──
-async function handleFormSubmit(event) {
+// ── FORM SUBMISSION WITH FORMSPREE ──
+// Replace YOUR_FORM_ID in the form action with your real Formspree form ID.
+// Example: https://formspree.io/f/abcxyz12
+const contactForm = document.getElementById('contactForm');
+
+contactForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  
-  // Gather form data
-  const firstName = document.getElementById('firstName').value.trim();
-  const lastName = document.getElementById('lastName').value.trim();
-  const email = document.getElementById('emailAddr').value.trim();
-  const phone = document.getElementById('phoneNum').value.trim();
-  const service = document.getElementById('serviceSelect').value;
-  const details = document.getElementById('projectDetails').value.trim();
-  
-  // Basic validation
-  if (!firstName || !lastName || !email || !phone || !service || !details) {
-    alert('Please fill in all fields before sending your enquiry.');
+
+  if (!contactForm.checkValidity()) {
+    contactForm.reportValidity();
     return;
   }
-  
-  // Email validation
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailPattern.test(email)) {
-    alert('Please enter a valid email address.');
-    return;
-  }
-  
+
   const btn = document.getElementById('sb');
   const originalText = btn.textContent;
   btn.textContent = '✓  Sending...';
   btn.style.background = '#2E7D52';
   btn.disabled = true;
-  
+
   try {
-    // Send to your Vercel API endpoint
-    const response = await fetch('/api/send-email', {
+    const formData = new FormData(contactForm);
+
+    const response = await fetch(contactForm.action, {
       method: 'POST',
+      body: formData,
       headers: {
-        'Content-Type': 'application/json',
+        Accept: 'application/json',
       },
-      body: JSON.stringify({
-        firstName,
-        lastName,
-        email,
-        phone,
-        service,
-        details
-      }),
     });
-    
-    const result = await response.json();
-    
+
     if (response.ok) {
       btn.textContent = '✓  Enquiry Sent!';
-      alert('Thank you! Your enquiry has been sent successfully. We\'ll get back to you soon.');
-      
-      // Clear the form
-      document.getElementById('firstName').value = '';
-      document.getElementById('lastName').value = '';
-      document.getElementById('emailAddr').value = '';
-      document.getElementById('phoneNum').value = '';
-      document.getElementById('serviceSelect').value = '';
-      document.getElementById('projectDetails').value = '';
+      alert("Thank you! Your enquiry has been sent successfully. We'll get back to you soon.");
+      contactForm.reset();
     } else {
+      const result = await response.json().catch(() => ({}));
       throw new Error(result.error || 'Failed to send');
     }
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Formspree error:', error);
     btn.textContent = '✗  Failed. Try Again.';
     btn.style.background = '#aa2e2e';
     alert('Sorry, there was an error sending your enquiry. Please try again or call us directly.');
   }
-  
+
   setTimeout(() => {
     btn.textContent = originalText;
     btn.style.background = '';
     btn.style.color = '';
     btn.disabled = false;
   }, 3000);
-}
-
-// Attach event listener to the form so button clicks and Enter key both work
-const contactForm = document.getElementById('contactForm');
-contactForm.addEventListener('submit', handleFormSubmit);
+});
 
 // ── NAV ACTIVE HIGHLIGHT ──
 const secs=document.querySelectorAll('section[id]'),nls=document.querySelectorAll('.nl a');
