@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
-  const requiredEnv = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'FROM_EMAIL', 'TO_EMAIL'];
+  const requiredEnv = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'TO_EMAIL'];
   const missingEnv = requiredEnv.filter((key) => !process.env[key]);
 
   if (missingEnv.length > 0) {
@@ -21,6 +21,7 @@ export default async function handler(req, res) {
   }
 
   const safe = (value) => String(value || '').replace(/[<>]/g, '').trim();
+
   const safeFirstName = safe(firstName);
   const safeLastName = safe(lastName);
   const safeEmail = safe(email);
@@ -29,6 +30,7 @@ export default async function handler(req, res) {
   const safeDetails = safe(details);
 
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   if (!emailPattern.test(safeEmail)) {
     return res.status(400).json({ error: 'Please enter a valid email address' });
   }
@@ -42,6 +44,9 @@ export default async function handler(req, res) {
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
+    },
+    tls: {
+      rejectUnauthorized: true,
     },
   });
 
@@ -70,7 +75,8 @@ export default async function handler(req, res) {
 
   try {
     await transporter.sendMail({
-      from: `Project Approvals <${process.env.FROM_EMAIL}>`,
+      from: process.env.SMTP_USER,
+      sender: process.env.SMTP_USER,
       to: process.env.TO_EMAIL,
       replyTo: safeEmail,
       subject: `New enquiry: ${safeFirstName} ${safeLastName} - ${safeService}`,
@@ -81,6 +87,12 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('Email sending error:', error);
-    return res.status(500).json({ error: 'Failed to send email' });
+
+    return res.status(500).json({
+      error: 'Failed to send email',
+      details: error.message,
+      code: error.code || null,
+      response: error.response || null,
+    });
   }
 }
