@@ -447,17 +447,18 @@ footer{background:#04080F;padding:2rem 6%;display:flex;align-items:center;justif
         <div class="ci"><div class="cico">🕐</div><div class="ct"><strong>Hours</strong><span>Monday – Saturday, 8:00 AM – 5:30 PM</span></div></div>
       </div>
     </div>
-    <form class="fbox reveal d2" id="contactForm" method="POST">
+    <form class="fbox reveal d2" id="contactForm">
       <h3>Request a Free<br/>Consultation</h3>
+      <input type="hidden" name="_subject" value="New enquiry from Project Approvals website"/>
       <div class="fr">
-        <div class="fg"><label>First Name</label><input type="text" id="firstName" placeholder="John"/></div>
-        <div class="fg"><label>Last Name</label><input type="text" id="lastName" placeholder="Smith"/></div>
+        <div class="fg"><label>First Name</label><input type="text" id="firstName" name="firstName" placeholder="John" required/></div>
+        <div class="fg"><label>Last Name</label><input type="text" id="lastName" name="lastName" placeholder="Smith" required/></div>
       </div>
-      <div class="fg"><label>Email Address</label><input type="email" id="emailAddr" placeholder="john@example.com.au"/></div>
-      <div class="fg"><label>Phone Number</label><input type="tel" id="phoneNum" placeholder="04XX XXX XXX"/></div>
+      <div class="fg"><label>Email Address</label><input type="email" id="emailAddr" name="email" placeholder="john@example.com.au" required/></div>
+      <div class="fg"><label>Phone Number</label><input type="tel" id="phoneNum" name="phone" placeholder="04XX XXX XXX" required/></div>
       <div class="fg">
         <label>Service Required</label>
-        <select id="serviceSelect">
+        <select id="serviceSelect" name="service" required>
           <option value="">Select a service…</option>
           <option>Project Management</option>
           <option>DA / CC Approval</option>
@@ -471,7 +472,7 @@ footer{background:#04080F;padding:2rem 6%;display:flex;align-items:center;justif
           <option>Not Sure — Need Advice</option>
         </select>
       </div>
-      <div class="fg"><label>Project Details</label><textarea id="projectDetails" placeholder="Briefly describe your project…"></textarea></div>
+      <div class="fg"><label>Project Details</label><textarea id="projectDetails" name="message" placeholder="Briefly describe your project…" required></textarea></div>
       <button type="submit" class="sbtn" id="sb">Send Enquiry →</button>
     </form>
   </div>
@@ -569,7 +570,7 @@ document.querySelectorAll('.tcard').forEach(c=>{
   c.addEventListener('mouseleave',()=>{c.style.transform='';c.style.transition='transform .5s ease'});
 });
 
-// ── FORM SUBMISSION WITH RESEND API ──
+// ── FORM SUBMISSION WITH VERCEL EMAIL API ──
 async function handleFormSubmit(event) {
   event.preventDefault();
   
