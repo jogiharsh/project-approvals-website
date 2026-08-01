@@ -1,113 +1,83 @@
-module.exports = async function handler(req, res) {
-  // 1. Enforce CORS / HTTP Method Check
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  // 2. Safely Parse Incoming Body Body Data
-  let body = req.body;
-  if (typeof body === 'string') {
-    try {
-      body = JSON.parse(body);
-    } catch (e) {
-      return res.status(400).json({ error: 'Invalid JSON payload structured.' });
-    }
+// ── FORM SUBMISSION ROUTED DIRECTLY TO FORMSPREE ──
+async function handleFormSubmit(event) {
+  event.preventDefault();
+  
+  // Gather form data
+  const firstName = document.getElementById('firstName').value.trim();
+  const lastName = document.getElementById('lastName').value.trim();
+  const email = document.getElementById('emailAddr').value.trim();
+  const phone = document.getElementById('phoneNum').value.trim();
+  const service = document.getElementById('serviceSelect').value;
+  const details = document.getElementById('projectDetails').value.trim();
+  
+  // Basic validation
+  if (!firstName || !lastName || !email || !phone || !service || !details) {
+    alert('Please fill in all fields before sending your enquiry.');
+    return;
   }
   
-  const { firstName, lastName, email, phone, service, details } = body || {};
-
-  // 3. Fallback Validation Loop
-  if (!firstName || !lastName || !email || !phone || !service || !details) {
-    return res.status(400).json({ error: 'All fields are required' });
-  }
-
-  // 4. Verification Check on Environment Constants
-  const resendApiKey = process.env.RESEND_API_KEY;
-  if (!resendApiKey) {
-    console.error('Configuration Error: RESEND_API_KEY environment variable missing.');
-    return res.status(500).json({ error: 'Server configuration error' });
-  }
-
-  // 5. Sanitize Strings safely
-  const safe = (value) => String(value || '').replace(/[<>]/g, '').trim();
-
-  const safeFirstName = safe(firstName);
-  const safeLastName = safe(lastName);
-  const safeEmail = safe(email);
-  const safePhone = safe(phone);
-  const safeService = safe(service);
-  const safeDetails = safe(details);
-
-  // Regex string signature verification for emails
+  // Email validation
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailPattern.test(safeEmail)) {
-    return res.status(400).json({ error: 'Please enter a valid email address' });
+  if (!emailPattern.test(email)) {
+    alert('Please enter a valid email address.');
+    return;
   }
-
-  // 6. Build Text and HTML email templates
-  const textBody = [
-    'New enquiry from Project Approvals website',
-    '',
-    'Contact details',
-    `Name: ${safeFirstName} ${safeLastName}`,
-    `Email: ${safeEmail}`,
-    `Phone: ${safePhone}`,
-    `Service: ${safeService}`,
-    '',
-    'Project details',
-    safeDetails,
-  ].join('\n');
-
-  const htmlBody = `
-    <h2>New enquiry from Project Approvals website</h2>
-    <p><strong>Name:</strong> ${safeFirstName} ${safeLastName}</p>
-    <p><strong>Email:</strong> ${safeEmail}</p>
-    <p><strong>Phone:</strong> ${safePhone}</p>
-    <p><strong>Service:</strong> ${safeService}</p>
-    <p><strong>Project details:</strong></p>
-    <p>${safeDetails.replace(/\n/g, '<br/>')}</p>
-  `;
-
-  // 7. Fire API Request to Resend Endpoint
+  
+  const btn = document.getElementById('sb');
+  const originalText = btn.textContent;
+  btn.textContent = '✓  Sending...';
+  btn.style.background = '#6366f1';
+  btn.style.color = '#fff';
+  btn.disabled = true;
+  
   try {
-    const targetRecipient = process.env.TO_EMAIL || 'info@projectapprovals.com.au';
-    
-    const resendResponse = await fetch('https://api.resend.com/emails', {
+    // 💡 PASTE YOUR COPIED FORMSPREE ENDPOINT URL HERE:
+    const response = await fetch('https://formspree.io/projects/3000740037122849807', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: 'Project Approvals <noreply@send.projectapprovals.com.au>',
-        to: [targetRecipient],
-        reply_to: safeEmail,
-        subject: `New enquiry: ${safeFirstName} ${safeLastName} - ${safeService}`,
-        text: textBody,
-        html: htmlBody,
+        FirstName: firstName,
+        LastName: lastName,
+        Email: email,
+        Phone: phone,
+        Service: service,
+        Message: details
       }),
     });
-
-    // Extract potential payload messages safely 
-    const resendData = await resendResponse.json();
-
-    if (!resendResponse.ok) {
-      console.error('Resend API payload submission crash:', resendData);
-      return res.status(resendResponse.status || 500).json({
-        error: 'Failed to send email via integration layer',
-        details: resendData,
-      });
+    
+    if (response.ok) {
+      btn.textContent = '✓  Enquiry Sent!';
+      alert('Thank you! Your enquiry has been sent successfully. We\'ll get back to you soon.');
+      
+      // Clear the form fields completely
+      document.getElementById('firstName').value = '';
+      document.getElementById('lastName').value = '';
+      document.getElementById('emailAddr').value = '';
+      document.getElementById('phoneNum').value = '';
+      document.getElementById('serviceSelect').value = '';
+      document.getElementById('projectDetails').value = '';
+    } else {
+      const result = await response.json();
+      throw new Error(result.error || 'Failed to send');
     }
-
-    return res.status(200).json({
-      success: true,
-      id: resendData.id,
-    });
   } catch (error) {
-    console.error('Internal processing script crash execution layer:', error);
-    return res.status(500).json({
-      error: 'Failed to complete execution thread',
-      details: error.message,
-    });
+    console.error('Formspree Delivery Error:', error);
+    btn.textContent = '✗  Failed. Try Again.';
+    btn.style.background = '#ff007f';
+    alert('Sorry, there was an error sending your enquiry via Formspree. Please try again or call us directly.');
   }
-};
+  
+  setTimeout(() => {
+    btn.textContent = originalText;
+    btn.style.background = '';
+    btn.style.color = '';
+    btn.disabled = false;
+  }, 3000);
+}
+
+// Re-bind the event listener to keep form keys operational
+const contactForm = document.getElementById('contactForm');
+contactForm.addEventListener('submit', handleFormSubmit);
