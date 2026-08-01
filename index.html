@@ -535,9 +535,11 @@ document.querySelectorAll('.sv, .tcard, .wc').forEach(c=>{
   });
 });
 
-// ── RESTFUL FORMlodgement SUBMITTER ──
+// ── RESTFUL FORMSPREE SUBMITTER ──
 async function handleFormSubmit(event) {
   event.preventDefault();
+  
+  // Gather form data safely from the browser elements
   const firstName = document.getElementById('firstName').value.trim();
   const lastName = document.getElementById('lastName').value.trim();
   const email = document.getElementById('emailAddr').value.trim();
@@ -545,10 +547,12 @@ async function handleFormSubmit(event) {
   const service = document.getElementById('serviceSelect').value;
   const details = document.getElementById('projectDetails').value.trim();
   
+  // Input Validation
   if (!firstName || !lastName || !email || !phone || !service || !details) {
     alert('Please fill in all fields before sending your enquiry.');
     return;
   }
+  
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailPattern.test(email)) {
     alert('Please enter a valid email address.');
@@ -563,15 +567,28 @@ async function handleFormSubmit(event) {
   btn.disabled = true;
   
   try {
-    const response = await fetch('/api/send-email', {
+    // 💡 Replace YOUR_ACTUAL_FORM_ID with your Formspree ID (e.g., https://formspree.io/f/xbjnqkyz)
+    const response = await fetch('https://formspree.io/projects/3000740037122849807', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ firstName, lastName, email, phone, service, details }),
+      headers: { 
+        'Accept': 'application/json',
+        'Content-Type': 'application/json' 
+      },
+      body: JSON.stringify({ 
+        FirstName: firstName, 
+        LastName: lastName, 
+        Email: email, 
+        Phone: phone, 
+        Service: service, 
+        Message: details 
+      }),
     });
-    const result = await response.json();
+    
     if (response.ok) {
       btn.textContent = '✓  Enquiry Sent!';
       alert('Thank you! Your enquiry has been sent successfully. We\'ll get back to you soon.');
+      
+      // Clear all text items safely inside the browser window
       document.getElementById('firstName').value = '';
       document.getElementById('lastName').value = '';
       document.getElementById('emailAddr').value = '';
@@ -579,14 +596,16 @@ async function handleFormSubmit(event) {
       document.getElementById('serviceSelect').value = '';
       document.getElementById('projectDetails').value = '';
     } else {
-      throw new Error(result.error || 'Failed to send');
+      const result = await response.json();
+      throw new Error(result.error || 'Failed to submit data to Formspree');
     }
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Submission Error:', error);
     btn.textContent = '✗  Failed. Try Again.';
     btn.style.background = '#ff007f';
-    alert('Sorry, there was an error sending your enquiry. Please try again or call us directly.');
+    alert('Sorry, there was an error sending your enquiry via Formspree. Please try again or call us directly.');
   }
+  
   setTimeout(() => {
     btn.textContent = originalText;
     btn.style.background = '';
@@ -595,7 +614,9 @@ async function handleFormSubmit(event) {
   }, 3000);
 }
 const contactForm = document.getElementById('contactForm');
-contactForm.addEventListener('submit', handleFormSubmit);
+if (contactForm) {
+  contactForm.addEventListener('submit', handleFormSubmit);
+}
 
 // ── NAV ANCHOR TRACKER ──
 const secs=document.querySelectorAll('section[id]'),nls=document.querySelectorAll('.nl a');
